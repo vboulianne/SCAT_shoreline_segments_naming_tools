@@ -55,6 +55,8 @@ def initiate_shoreline_segments_naming():
     # referecnceGrid = arcpy.GetParameterAsText(1)
 
 
+    # CHECKS
+    # Check is line/polyline
     # Check if shoreline and grid feature classes is projected properly. If not exit.
 
 
@@ -108,10 +110,27 @@ def initiate_shoreline_segments_naming():
 
             finally:
         sectorCount += 1
+
+
+
         
 if __name__ == '__main__':
-    initiate_shoreline_segments_naming()
+    lic_arcinfo_status = arcpy.CheckProduct("arcinfo")
+    lic_spatial_analyst_status = arcpy.CheckExtension("spatial")
 
+    #if lic_arcinfo_status == "AlreadyInitalized":  # check licenses (p.117)
+    #    pass
+    #elif  lic_arcinfo_status == "Available" or :
+    #    pass
+    #else:
+        # Exit script gracefully
+    
+    # if lic_spatial_analyst_status = "Available":
+    #    arcpy.CheckOutExtension("spatial")
+
+    initiate_shoreline_segments_naming() # main function
+
+    arcpy.CheckInExtension("spatial")
 
 
 
