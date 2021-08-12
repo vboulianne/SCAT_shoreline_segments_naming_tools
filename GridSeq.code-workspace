@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "ECCC-Shoreline-Segmentation",
+			"path": "ECCC-Shoreline-Segmentation"
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "C:\\Python27\\ArcGISx6410.6\\python.exe",
+		"python.pythonPath": "C:\\Python27\\ArcGISx6410.6\\python.exe"
+	}
+}
