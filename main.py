@@ -16,14 +16,20 @@
 
 # =========================================
 
+
+
 # Import modules
 
 import arcpy
 import os
 import locale
 
-# Functions
+# Declarations
 
+# TODO: Find how to specify in the working directory of loaded datasets or input dataset
+arcpy.env.workspace = "C:/Data" # Set ArcGIS workspace 
+
+# Functions
 def unique(input_list):
     
     # insert the list to the set
@@ -33,6 +39,7 @@ def unique(input_list):
     for x in unique_list:
         print x
     return unique_list
+
 
 
 def initiate_shoreline_segments_naming():
@@ -49,6 +56,8 @@ def initiate_shoreline_segments_naming():
 
 
     # Check if shoreline and grid feature classes is projected properly. If not exit.
+
+
 
     # arcpy.Project_management(in_dataset="nts_snrc_50k", out_dataset="C:/GIS/Shoreline/Data/nts_snrc_projected", out_coor_system="GEOGCS['GCS_North_American_1983',DATUM['D_North_American_1983',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", transform_method="'NAD_1983_CSRS_To_WGS_1984_2 + NAD_1983_To_WGS_1984_1'", in_coor_system="GEOGCS['GCS_North_American_1983_CSRS',DATUM['D_North_American_1983_CSRS',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", preserve_shape="PRESERVE_SHAPE", max_deviation="", vertical="NO_VERTICAL")
 

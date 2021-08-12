@@ -1,8 +1,7 @@
 {
 	"folders": [
 		{
-			"name": "ECCC-Shoreline-Segmentation",
-			"path": "ECCC-Shoreline-Segmentation"
+			"path": "."
 		}
 	],
 	"settings": {

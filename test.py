@@ -1,6 +1,6 @@
 
 # Reads the fields in a feature class
-
+'''
 import arcpy
 
 featureClass = r'C:\GIS\Shoreline\shln_bay_of_fundy.shp'
@@ -22,3 +22,10 @@ with arcpy.da.SearchCursor(featureClass,("SUBGROUP_E", "DATASOURCE")) as cursor:
 list_set = set(values_list)
 grid_list = list(list_set)
 print grid_list
+
+'''
+
+import arcpy
+tools = arcpy.ListTools("*_analysis")
+for tool in tools:
+	print arcpy.Usage(tool)
