@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "C:\\Python27\\ArcGISx6410.6\\python.exe",
+		"python.pythonPath": "C:\\Python27\\ArcGISx6410.6\\python.exe"
+	}
+}
