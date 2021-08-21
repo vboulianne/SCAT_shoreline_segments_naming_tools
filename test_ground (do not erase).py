@@ -3,9 +3,9 @@ import arcpy
 shoreline_to_process = r"C:\GIS\Shoreline\shln_bay_of_fundy.shp"
 reference_grid = r"C:\GIS\Shoreline\code_sgmt_naming\nts_grid\nts_grid.shp"
 #islands_ordered = arcpy.GetParameterAsText(2)
-shoreline_order_field = "UNIQUEID"
+shoreline_order_field = "OBJECTID"
 #island_order_field = arcpy.GetParameterAsText(4)
-output = r"C:\GIS\Shoreline\Output\output.shp"
+output = r"C:\GIS\Shoreline\Output\output10.shp"
 
 
 # CHECKS/VALIDATION
@@ -19,13 +19,13 @@ output = r"C:\GIS\Shoreline\Output\output.shp"
 # Attribute Grid to Segment
 
 
-shln_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
+shln_to_process_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process, join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
 
 
 # Search Unique Values of grid for shapefile and put in list
 
 values_list = []
-with arcpy.da.SearchCursor(shln_with_grid,("NTS_SNRC")) as cursor:
+with arcpy.da.SearchCursor(shln_to_process_with_grid,("NTS_SNRC")) as cursor:
     for row in cursor:
         values_list.append(row[0])
 sector_list = list(set(values_list))
@@ -41,18 +41,25 @@ for sector in  sector_list:
     # List has to be created from which segments can be deleted after being named. Current segment would not be in that list. Then spatial join can be used
     # to select the closest next segment. 
 
-    #SNIPPET: arcpy.Select_analysis(in_features="work_shln_bay_of_fundy_withGrid", out_feature_class="C:/GIS/Shoreline/work5.shp", where_clause='"NTS_SNRC" = '021A12'')
 
-    segments_in_sector = arcpy.Select_analysis(shln_with_grid, out_feature_class="C:\GIS\Shoreline\Output\segments_in_sector.php", where_clause="NTS_SNRC='" + sector + "'")
-    
+    # WRONG segments_in_sector = arcpy.Select_analysis(shln_with_grid, where_clause="NTS_SNRC='" + sector + "'")
+    '''
+    Current problem. 
+    arcpy.Select_analysis create a separate output feature and is not a selection in the current 
+    '''
+
     # TODO: Work up to here 
+
 
     sql_clause_ord = (None, "ORDER BY " + shoreline_order_field + " ASC")
 
     num_seq = 1
-    with arcpy.da.SearchCursor(segments_in_sector, field_names="*", sql_clause=sql_clause_ord) as cursor:
-        print(sector + "-" +  str(num_seq))
-        num_seq += 1
+    with arcpy.da.UpdateCursor(shln_to_process_with_grid, ["NAME_EN"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
+        for row in cursor:
+            row[0] = sector + "-" +  str(num_seq)
+            cursor.updateRow(row)
+            num_seq += 1
 
     sector_count += 1
 
+arcpy.Copy_management(shln_to_process_with_grid, output)
