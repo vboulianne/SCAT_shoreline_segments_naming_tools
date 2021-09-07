@@ -1,5 +1,5 @@
 # Ignorer l'entièreté des fichiers/dossiers
-#/**/*
+/**/*
 
 
 # Ne PAS ignorer les fichiers Python et autre fichier important
