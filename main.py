@@ -57,7 +57,7 @@ def initiate_shoreline_segments_naming():
     shoreline_order_field = arcpy.GetParameterAsText(3)
     island_order_field = arcpy.GetParameterAsText(4)
     output = arcpy.GetParameterAsText(5)
-    
+
 
 
     # CHECKS
@@ -72,21 +72,21 @@ def initiate_shoreline_segments_naming():
     # Attribute Grid to Segment
 
 
-shln_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
+    shln_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
 
 
 # Search Unique Values of grid for shapefile and put in list
 
-values_list = []
-with arcpy.da.SearchCursor(shln_with_grid,("NTS_SNRC")) as cursor:
-    for row in cursor:
-        values_list.append(row[0])
-sector_list = list(set(values_list))
+    values_list = []
+    with arcpy.da.SearchCursor(shln_with_grid,("NTS_SNRC")) as cursor:
+        for row in cursor:
+            values_list.append(row[0])
+    sector_list = list(set(values_list))
 
 
     # LOOP
     sector_count = 0
-    for sector in  sector_list
+    for sector in  sector_list:
 
         # Select all segments within grid sector
     
