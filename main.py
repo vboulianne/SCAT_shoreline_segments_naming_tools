@@ -72,13 +72,13 @@ def initiate_shoreline_segments_naming():
     # Attribute Grid to Segment
 
 
-    shln_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
+    shln_to_process_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
 
 
 # Search Unique Values of grid for shapefile and put in list
 
     values_list = []
-    with arcpy.da.SearchCursor(shln_with_grid,("NTS_SNRC")) as cursor:
+    with arcpy.da.SearchCursor(shln_to_process_with_grid,("NTS_SNRC")) as cursor:
         for row in cursor:
             values_list.append(row[0])
     sector_list = list(set(values_list))
@@ -96,35 +96,30 @@ def initiate_shoreline_segments_naming():
 
         #SNIPPET: arcpy.Select_analysis(in_features="work_shln_bay_of_fundy_withGrid", out_feature_class="C:/GIS/Shoreline/work5.shp", where_clause='"NTS_SNRC" = '021A12'')
         
-        if shoreline_order_field:
-            order_by = shoreline_order_field
+        #if shoreline_order_field:
+        #    order_by = shoreline_order_field
         
-        segments_in_sector = arcpy.Select_analysis(shln_with_grid, where_clause="NTS_SNRC =" + sector)
+        '''
+        Current problem. 
+        arcpy.Select_analysis create a separate output feature and is not a selection in the current 
+        '''
+
+        # TODO: Work up to here 
+
+
+        sql_clause_ord = (None, "ORDER BY " + shoreline_order_field + " ASC")
 
         num_seq = 1
-        with arcpy.da.SearchCursor(segments_in_sector, sql_clause="ORDER BY " + order_by)   as cursor:
-            
-            try: 
-            print(sector + num_seq)
-            num_seq += 1 
+        with arcpy.da.UpdateCursor(shln_to_process_with_grid, ["NAME_EN"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
+            for row in cursor:
+                row[0] = sector + "-" +  str(num_seq).zfill(3)
+                cursor.updateRow(row)
+                num_seq += 1
 
-
-            # Select segment at to the bottom left of the grid
-
-            # LOOP
-
-            # For the currently selected segment, find the distance of all other segments
-            # Select closest segment to the current segment.
-            # Name closest segment 
-            #END LOOP
-
-            except:
-
-            finally:
-                
-
-                
         sector_count += 1
+
+    arcpy.Copy_management(shln_to_process_with_grid, output)
+
 
 
 
