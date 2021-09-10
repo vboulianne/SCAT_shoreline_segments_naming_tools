@@ -23,6 +23,7 @@
 import arcpy
 import os
 import locale
+arcpy.env.overwriteOutput = True
 
 # Declarations
 
@@ -53,27 +54,32 @@ def initiate_shoreline_segments_naming():
 
     shoreline_to_process = arcpy.GetParameterAsText(0)
     reference_grid = arcpy.GetParameterAsText(1)
-    islands_ordered = arcpy.GetParameterAsText(2)
-    shoreline_order_field = arcpy.GetParameterAsText(3)
-    island_order_field = arcpy.GetParameterAsText(4)
-    output = arcpy.GetParameterAsText(5)
+    method = arcpy.GetParameterAsText(2)
+    islands_ordered = arcpy.GetParameterAsText(3)
+    shoreline_order_field = arcpy.GetParameterAsText(4)
+    island_order_field = arcpy.GetParameterAsText(5)
+    output = arcpy.GetParameterAsText(6)
 
 
 
-    # CHECKS
+    ########### CHECKS #################
     # Check is line/polyline
     # Check if shoreline and grid feature classes is projected properly. If not exit.
 
-
+    ########### CREATE LOGIC ##############
 
     # arcpy.Project_management(in_dataset="nts_snrc_50k", out_dataset="C:/GIS/Shoreline/Data/nts_snrc_projected", out_coor_system="GEOGCS['GCS_North_American_1983',DATUM['D_North_American_1983',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", transform_method="'NAD_1983_CSRS_To_WGS_1984_2 + NAD_1983_To_WGS_1984_1'", in_coor_system="GEOGCS['GCS_North_American_1983_CSRS',DATUM['D_North_American_1983_CSRS',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", preserve_shape="PRESERVE_SHAPE", max_deviation="", vertical="NO_VERTICAL")
 
 
     # Attribute Grid to Segment
 
+    # Create will be problematic shln_proximity_table =  arcpy.GenerateNearTable_analysis(in_features=shoreline_to_process, near_features=shoreline_to_process, out_table="C:/GIS/Shoreline/Shoreline_Database.gdb/shln_northern_bc_proximity_table", search_radius="", location="NO_LOCATION", angle="NO_ANGLE", closest="CLOSEST", closest_count="0", method="GEODESIC")
 
     shln_to_process_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
 
+
+
+    ########## GROUP SEGMENTS BY SECTOR ##############
 
 # Search Unique Values of grid for shapefile and put in list
 
@@ -83,43 +89,96 @@ def initiate_shoreline_segments_naming():
             values_list.append(row[0])
     sector_list = list(set(values_list))
 
-
-    # LOOP
     sector_count = 0
     for sector in  sector_list:
 
-        # Select all segments within grid sector
-    
-
-        # List has to be created from which segments can be deleted after being named. Current segment would not be in that list. Then spatial join can be used
-        # to select the closest next segment. 
-
-        #SNIPPET: arcpy.Select_analysis(in_features="work_shln_bay_of_fundy_withGrid", out_feature_class="C:/GIS/Shoreline/work5.shp", where_clause='"NTS_SNRC" = '021A12'')
-        
-        #if shoreline_order_field:
-        #    order_by = shoreline_order_field
+        '''
+        Various methods to name sequentially. Choose one.
+        Method 1: Use an ordered field. 
+        Method 2: Use segment proximity
         
         '''
-        Current problem. 
-        arcpy.Select_analysis create a separate output feature and is not a selection in the current 
-        '''
 
-        # TODO: Work up to here 
+        if method == 1:
+
+            # LOOP
 
 
-        sql_clause_ord = (None, "ORDER BY " + shoreline_order_field + " ASC")
+            # Select all segments within grid sector
+        
 
-        num_seq = 1
-        with arcpy.da.UpdateCursor(shln_to_process_with_grid, ["NAME_EN"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
-            for row in cursor:
-                row[0] = sector + "-" +  str(num_seq).zfill(3)
-                cursor.updateRow(row)
-                num_seq += 1
+            # List has to be created from which segments can be deleted after being named. Current segment would not be in that list. Then spatial join can be used
+            # to select the closest next segment. 
+
+            #SNIPPET: arcpy.Select_analysis(in_features="work_shln_bay_of_fundy_withGrid", out_feature_class="C:/GIS/Shoreline/work5.shp", where_clause='"NTS_SNRC" = '021A12'')
+            
+            #if shoreline_order_field:
+            #    order_by = shoreline_order_field
+            
+            '''
+            Current problem. 
+            arcpy.Select_analysis create a separate output feature and is not a selection in the current 
+            '''
+
+            # TODO: Work up to here 
+
+
+            sql_clause_ord = (None, "ORDER BY " + shoreline_order_field + " ASC")
+
+            num_seq = 1
+            with arcpy.da.UpdateCursor(shln_to_process_with_grid, ["NAME_EN"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
+                for row in cursor:
+                    row[0] = sector + "-" +  str(num_seq).zfill(4)
+                    cursor.updateRow(row)
+                    num_seq += 1
+
+
+        
+        elif method == 2:
+
+            sql_clause_ord = (None, "ORDER BY " + shoreline_order_field + " ASC")
+            num_seq = 1
+            # segments_remaining = [] # List of the ID of the remaining segments
+            
+            # Select First Segment
+
+            with arcpy.da.UpdateCursor(shln_to_process_with_grid, ["OBJECTID", "NAME_EN"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
+                
+                segments_remaining = cursor
+                for row in cursor:
+                    row[1] = sector + "-0001"
+                    segment_processed = row
+                    for segment in segments_remaining:
+                        if segment[0] == row[0]:
+                            cursor.deleteRow(row)
+                        break 
+                    break
+
+            # End Select First segment
+            
+            while segments_remaining.count() > 0:
+                
+                # Trouver le moyen d'éviter l'usage d'un curseur pour la lecture de la table de proximité
+                near_table = arcpy.GenerateNearTable_analysis(segment_processed, segments_remaining, closest="CLOSEST", method="GEODESIC", out_table="C:\GIS\Shoreline\Scratch\NearTable.shp")
+
+                with arcpy.da.SearchCursor(near_table, "*") as cursor:
+                    for row in cursor:
+                        nearest_segment = row[2]
+                        break
+                
+                
+                with arcpy.da.UpdateCursor(shln_to_process_with_grid, ["OBJECTID", "NAME_EN"], where_clause="OBJECTID='" + nearest_segment + "'") as cursor:
+                    for row in cursor:
+                        row[1] = sector + "-" +  str(num_seq).zfill(4)
+                        cursor.updateRow(row)
+                        num_seq += 1
+                        break
+                    
+
 
         sector_count += 1
 
     arcpy.Copy_management(shln_to_process_with_grid, output)
-
 
 
 
@@ -142,22 +201,3 @@ if __name__ == '__main__':
 
     arcpy.CheckInExtension("spatial")
 
-
-
-# UNUSED CODE:
-'''
-            segmentsWithinGrid = arcpy.SelectLayerByLocation_management(shorelineToProcess, 'CONTAINED', selectionStateLayer)
-
-        except:
-
-        finally:
-            arcpy.Delete_management("")
-            arcpy.Delete_management("")
-
-        for sector in grid:
-            with arcpy.da.SearchCursor(shorelineToProcess, (NTS_SNRC), sector) as cursor:
-
-                # Calculate nearest segment and name it
-                for row in cursor:
-                    # Calculate nearest segment
-'''
