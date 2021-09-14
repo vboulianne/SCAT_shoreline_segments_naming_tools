@@ -23,7 +23,9 @@
 import arcpy
 import os
 import locale
+from uuid import uuid4
 arcpy.env.overwriteOutput = True
+#arcpy.env.scratchWorkspace = "c:/GIS/Shoreline/Scratch"
 
 # Declarations
 
@@ -62,7 +64,7 @@ def initiate_shoreline_segments_naming():
     '''
 
     shoreline_to_process = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shoreline_classification_bay_of_fundy"
-    segment_processed = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shln_bof_1segment"
+    #segment_processed = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shln_bof_1segment"
     reference_grid = r"C:\GIS\Shoreline\code_sgmt_naming\nts_grid\nts_grid.shp"
     #islands_ordered = arcpy.GetParameterAsText(2)
     shoreline_order_field = "OBJECTID"
@@ -71,11 +73,10 @@ def initiate_shoreline_segments_naming():
     output = r"C:\GIS\Shoreline\Output\output14.shp"
     shoreline_processed_path = r"C:\GIS\Shoreline\Output"
     shoreline_processed_name = r"shoreline_with_name.shp"
-    output_test = r"C:\GIS\Shoreline\shln_naming_work.gdb\scratch\test6"
+    output_test = r"C:\GIS\Shoreline\shln_naming_work.gdb\scratch\test7"
     #arcpy.env.workspace = r"C:\GIS\Shoreline"
     method = 2
 
-    
 
 
     ########### CHECKS #################
@@ -91,10 +92,12 @@ def initiate_shoreline_segments_naming():
 
     # Create will be problematic shln_proximity_table =  arcpy.GenerateNearTable_analysis(in_features=shoreline_to_process, near_features=shoreline_to_process, out_table="C:/GIS/Shoreline/Shoreline_Database.gdb/shln_northern_bc_proximity_table", search_radius="", location="NO_LOCATION", angle="NO_ANGLE", closest="CLOSEST", closest_count="0", method="GEODESIC")
 
-    shln_to_process_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process , join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
-    #shln_processed = arcpy.CreateFeatureclass_management(out_path=shoreline_processed_path, out_name=shoreline_processed_name, geometry_type="POLYLINE", template=shln_to_process_with_grid, has_m="DISABLED", has_z="DISABLED", spatial_reference="GEOGCS['GCS_North_American_1983',DATUM['D_North_American_1983',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]];-400 -400 1000000000;-100000 10000;-100000 10000;8.98315284119521E-09;0.001;0.001;IsHighPrecision", spatial_grid_1="0", spatial_grid_2="0", spatial_grid_3="0")
-    shln_processed = arcpy.Copy_management(shln_to_process_with_grid)
-    arcpy.TruncateTable_management(shln_processed)
+    shln_to_process_with_grid = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""),  join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
+    shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process_with_grid, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
+    arcpy.DeleteRows_management(in_rows=shln_processed)
+
+    # segs_rem = arcpy.CopyFeatures_management(in_features=shln_to_process_with_grid, out_feature_class="C:/GIS/Shoreline/Scratch/segs_rem" +str(uuid4()).replace("-", "") + ".shp")
+
 
 
 
@@ -159,7 +162,7 @@ def initiate_shoreline_segments_naming():
 
             # Select First Segment
 
-            segments_remaining = arcpy.Select_analysis(in_features=shln_to_process_with_grid, where_clause="NTS_SNRC='" + sector + "'")
+            segments_remaining = arcpy.Select_analysis(in_features=shln_to_process_with_grid, out_feature_class="in_memory\seg_rem", where_clause="NTS_SNRC='" + sector + "'")
             #arcpy.Copy_management(segments_remaining , output_test)
 
             sql_clause_ord = (None, "ORDER BY TARGET_FID ASC")
@@ -171,57 +174,61 @@ def initiate_shoreline_segments_naming():
 
                     if num_seq == 1:
                         segment[5] = segment[6] = sector + "-0001"
-
                         segments_remaining_cursor.deleteRow()
                         segment_id_processed = segment[4]
                         segments_id_remaining.remove(segment_id_processed)
                         segment_processed = arcpy.Select_analysis(in_features=segments_remaining, where_clause="UNIQUEID='" + segment_id_processed + "'")
                         num_seq += 1
+                        segs_rem = arcpy.CopyFeatures_management(in_features=segments_remaining, out_feature_class="C:\GIS\Shoreline\Scratch\segs_rem.shp")
+                        near_table = arcpy.GenerateNearTable_analysis(segment, segs_rem, closest="CLOSEST", method="GEODESIC", out_table="C:\GIS\Shoreline\Scratch\near_table.shp")
+                    break
 
-                        # near_table = arcpy.GenerateNearTable_analysis(segment, segments_remaining, closest="CLOSEST", method="GEODESIC", out_table="C:\GIS\Shoreline\Scratch\near_table.shp")
-                    break 
-                near_table = arcpy.GenerateNearTable_analysis(segment_processed, segments_remaining, closest="CLOSEST", method="GEODESIC")
+
+                near_table = arcpy.GenerateNearTable_analysis(segment_processed, segments_remaining, out_table="in_memory/near_table",  closest="CLOSEST", method="GEODESIC")
 
             with arcpy.da.InsertCursor(shln_processed, "*") as shln_processed_cursor:
                 shln_processed_cursor.insertRow(segment)
-            arcpy.Copy_management(shln_processed , output_test)
-            '''
+            # arcpy.CopyFeatures_management(shln_processed , output_test)
+
+
             with arcpy.da.SearchCursor(near_table, "*") as cursor:
                 for row in cursor:
                     #segment = row
                     segment_id = row[2]
+                    print("SegmentID :" + str(segment_id))
                     break
-                print("Step 2")
-            break
 
-            while segments_id_remaining > 0:
-                with arcpy.da.UpdateCursor(segments_remaining,"*", where_clause= "OBJECTID =" + segment_id) as cursor:
+            #segment_id = str(2000)
+            '''
+            while len(segments_id_remaining) > 0:
+                print ("No of segments remaining: " + str(len(segments_id_remaining)))
+                with arcpy.da.UpdateCursor(segments_remaining,"*", where_clause= "OBJECTID ='" + segment_id + "'") as cursor:
 
                     for segment in cursor: 
-                        segment[5] = segment[6] = sector + "-" +  str(num_seq).zfill(4)
 
+                        segment[5] = segment[6] = sector + "-" +  str(num_seq).zfill(4)
+                        print("Segment " + str(num_seq))
                         segments_remaining_cursor.deleteRow()
                         segment_id_processed = segment[0]
                         # segments_id_remaining.remove(segment_id_processed)
-                        break
-                with arcpy.da.InsertCursor(shln_processed, "*") as shln_processed_cursor:
-                    shln_processed_cursor.insertRow(segment)
-                near_table = arcpy.GenerateNearTable_analysis(segment, segments_remaining, closest="CLOSEST", method="GEODESIC", out_table="C:\GIS\Shoreline\Scratch\NearTable.shp")
+                        with arcpy.da.InsertCursor(shln_processed, "*") as shln_processed_cursor:
+                            shln_processed_cursor.insertRow(segment)
+                        near_table = arcpy.GenerateNearTable_analysis(segment, segments_remaining, closest="CLOSEST", method="GEODESIC", out_table="in_memory/near_table")
 
-                with arcpy.da.SearchCursor(near_table, "*") as cursor:
-                    for row in cursor:
-                        # segment = row
-                        segment_id = row[0]
-                        break
-
+                        with arcpy.da.SearchCursor(near_table, "*") as cursor:
+                            for row in cursor:
+                                # segment = row
+                                segment_id = row[0]
+                                break
+                        num_seq += 1
                             # End Select First segment
-            
+            '''
 
 
         sector_count += 1
     # arcpy.DeleteField_management(outFeatureClass, ["join_count", "SRID", "TARGET_FID"])
     # arcpy.Copy_management(shln_to_process_with_grid, output)
-'''
+
 
 
         
