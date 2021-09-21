@@ -38,35 +38,35 @@ arcpy.env.overwriteOutput = True
 
 def initiate_shoreline_segments_naming():
 
-    testmode = 1
+    testmode = 0
 
     if testmode == 0:
 
         ###### INPUT - TOOL GUI ######
 
-        shoreline = arcpy.GetParameterAsText(0)
+        shoreline_file = arcpy.GetParameterAsText(0)
         reference_grid = arcpy.GetParameterAsText(1)
-        method = arcpy.GetParameterAsText(2)
+        #method = arcpy.GetParameterAsText(2)
+        method = 2
         islands_ordered = arcpy.GetParameterAsText(3)
         shoreline_order_field = arcpy.GetParameterAsText(4)
-        island_order_field = arcpy.GetParameterAsText(5)
-        output = arcpy.GetParameterAsText(6)
+        #island_order_field = arcpy.GetParameterAsText(5)
+        process_output = arcpy.GetParameterAsText(5)
+        # process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
+
 
     elif testmode == 1:
         ###### INPUT - STATIC #######
 
-        #shoreline = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy"
-        shoreline = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_arctic_mb_nl_nt_nu_on_qc_yt"
-        #segment_processed = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shln_bof_1segment"
+        shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy"
+        #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_arctic_mb_nl_nt_nu_on_qc_yt"
         reference_grid = "C:/GIS/Shoreline/code_sgmt_naming/nts_grid/nts_grid.shp"
         shoreline_order_field = "OBJECTID"
-        shoreline_field_id = "TARGET_ID"
-        output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
-        shoreline_processed_path = r"C:\GIS\Shoreline\Output"
-        shoreline_processed_name = r"shoreline_with_name.shp"
+        # shoreline_field_id = "TARGET_ID"
+        process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
         #arcpy.env.workspace = r"C:\GIS\Shoreline"
         method = 2
-
+    
 
 
     ########### CHECKS #################
@@ -78,7 +78,7 @@ def initiate_shoreline_segments_naming():
 
 
     # Attribute Grid to Segment
-    shln_to_process = arcpy.SpatialJoin_analysis(target_features=shoreline, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""), join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
+    shln_to_process = arcpy.SpatialJoin_analysis(target_features=shoreline_file, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""), join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
     
     # Make file for processed segment (Method 2)
     shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
@@ -95,18 +95,17 @@ def initiate_shoreline_segments_naming():
     sector_list = list(set(values_list))
 
     sector_count = 0
-    for sector in sector_list: # Loop by sector
 
-        '''
-        Various methods to name sequentially. Choose one.
-        Method 1: Use an ordered field. 
-        Method 2: Use segment proximity
-        
-        '''
+    '''
+    Various methods to name sequentially. Choose one.
+    Method 1: Use an ordered field. 
+    Method 2: Use segment proximity
+    
+    '''
 
-        if method == 1:
+    if method == 1:
 
-
+        for sector in sector_list: # Loop by sector
 
             # Select all segments within grid sector
         
@@ -121,13 +120,18 @@ def initiate_shoreline_segments_naming():
                     cursor.updateRow(row)
                     num_seq += 1
             
-            shln_processed = shln_to_process
+            sector_count += 1
+            #print("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
+            arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
+
+        shln_processed = shln_to_process
 
 
 
-        elif method == 2:
+    elif method == 2:
 
-            
+        for sector in sector_list: # Loop by sector
+
             segments_remaining = arcpy.Select_analysis(in_features=shln_to_process, out_feature_class="in_memory\seg_rem_" + str(uuid4()).replace("-", ""), where_clause="NTS_SNRC='" + sector + "'")
             
             segments_id_remaining = []
@@ -136,7 +140,6 @@ def initiate_shoreline_segments_naming():
             with arcpy.da.SearchCursor(segments_remaining,("OBJECTID", "NTS_SNRC")) as cursor:
                 for row in cursor:
                     segments_id_remaining.append(row[0])
-            #arcpy.Copy_management(segments_remaining , output_test)
 
             ##### PROCESS FIRST SEGMENT ####
 
@@ -244,23 +247,25 @@ def initiate_shoreline_segments_naming():
 
                 num_seq += 1
 
-        arcpy.Delete_management(segments_remaining)
-        sector_count += 1
+            arcpy.Delete_management(segments_remaining)
+            sector_count += 1
+            ## SHOW PROGRESS ##
+            #print("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
+            arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
 
-        ## SHOW PROGRESS ##
-        print("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
 
-        
 
-    arcpy.CopyFeatures_management(shln_processed, output)
+    ###### OUTPUT ######
+    arcpy.CopyFeatures_management(shln_processed, process_output)
+    print("Processed shoreline written to " + process_output)
 
 
 
         
 if __name__ == '__main__':
 
-    #lic_arcinfo_status = arcpy.CheckProduct("arcinfo")
-    #lic_spatial_analyst_status = arcpy.CheckExtension("spatial")
+    lic_arcinfo_status = arcpy.CheckProduct("arcinfo")
+    lic_spatial_analyst_status = arcpy.CheckExtension("spatial")
 
     #if lic_arcinfo_status == "AlreadyInitalized":  # check licenses (p.117)
     #    pass
