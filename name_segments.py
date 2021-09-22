@@ -46,26 +46,25 @@ def initiate_shoreline_segments_naming():
 
         shoreline_file = arcpy.GetParameterAsText(0)
         reference_grid = arcpy.GetParameterAsText(1)
-        #method = arcpy.GetParameterAsText(2)
-        method = 2
-        islands_ordered = arcpy.GetParameterAsText(3)
+        method = arcpy.GetParameterAsText(2)
+        single_segment_to_process = arcpy.GetParameterAsText(3)
         shoreline_order_field = arcpy.GetParameterAsText(4)
-        #island_order_field = arcpy.GetParameterAsText(5)
-        process_output = arcpy.GetParameterAsText(5)
+        process_output = arcpy.GetParameterAsText(4)
         # process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
 
 
     elif testmode == 1:
         ###### INPUT - STATIC #######
 
-        shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy"
+        #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy"
+        shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy_method2"
         #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_arctic_mb_nl_nt_nu_on_qc_yt"
-        reference_grid = "C:/GIS/Shoreline/code_sgmt_naming/nts_grid/nts_grid.shp"
+        reference_grid = "C:/GIS/Shoreline/code_sgmt_naming/grid/nts_grid.shp"
+        single_segment_to_process = "021G05"
         shoreline_order_field = "OBJECTID"
-        # shoreline_field_id = "TARGET_ID"
         process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
         #arcpy.env.workspace = r"C:\GIS\Shoreline"
-        method = 2
+        method = "By Proximity"
     
 
 
@@ -88,13 +87,17 @@ def initiate_shoreline_segments_naming():
 
     # Search Unique Values of grid for shapefile and put in list
 
-    values_list = []
-    with arcpy.da.SearchCursor(shln_to_process,("TARGET_FID", "NTS_SNRC")) as cursor:
-        for row in cursor:
-            values_list.append(row[1])
-    sector_list = list(set(values_list))
 
-    sector_count = 0
+    if single_segment_processed = "":
+        values_list = []
+        with arcpy.da.SearchCursor(shln_to_process,("TARGET_FID", "NTS_SNRC")) as cursor:
+            for row in cursor:
+                values_list.append(row[1])
+        sector_list = list(set(values_list))
+    else:
+        sector_list = []
+        sector_list.append(single_segment_to_process)
+
 
     '''
     Various methods to name sequentially. Choose one.
@@ -103,10 +106,10 @@ def initiate_shoreline_segments_naming():
     
     '''
 
-    if method == 1:
-
+    if method == "By Ordering Field":
+        sector_count = 1
         for sector in sector_list: # Loop by sector
-
+            arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") being processed")
             # Select all segments within grid sector
         
 
@@ -122,15 +125,17 @@ def initiate_shoreline_segments_naming():
             
             sector_count += 1
             #print("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
-            arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
+            
 
         shln_processed = shln_to_process
 
 
 
-    elif method == 2:
+    elif method == "By Proximity":
 
+        sector_count = 1
         for sector in sector_list: # Loop by sector
+            arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") being processed")
 
             segments_remaining = arcpy.Select_analysis(in_features=shln_to_process, out_feature_class="in_memory\seg_rem_" + str(uuid4()).replace("-", ""), where_clause="NTS_SNRC='" + sector + "'")
             
@@ -151,15 +156,21 @@ def initiate_shoreline_segments_naming():
             editing a "sector_first_segment" field added for this purpose. 
         
             '''
-
             num_seq = 1
             
             lstFields = arcpy.ListFields(segments_remaining)
-
             x = False
             for field in lstFields:
                 if field.name == "sector_first_segment":
-                    x = True
+                    fs_count = 0
+                    with arcpy.da.UpdateCursor(segments_remaining) as first_segments_cursor:
+                        for seg in first_segments_cursor:
+                            if seg[0] == 1:
+                                x = True
+                                fs_count += 1
+                    if fs_count > 1: 
+                        arcpy.AddMessage("Sector " + str(sector_count) + " has more than one 'first segment': review")
+                        sys.exit()
 
             if x == True:
                 sql_clause_ord = (None, 'ORDER BY sector_first DESC')
