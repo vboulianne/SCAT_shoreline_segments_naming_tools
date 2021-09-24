@@ -4,11 +4,16 @@
 
 # Ne PAS ignorer les fichiers Python et autre fichier important
 !/README.md
-!/name_segments.py
-!/ordering_field.py
-!/api.py
+!/grid
+!/grid/*
+!/code
+!/code/*
+!/example
+!/example/*
 !/.gitignore
 !/Shoreline Segmentation.tbx
-!/grid
+!/Segmentation Example.png
 !/scratch_pad.py
 !/Vincent Boulianne (2021) Naming Convention For ECCC's Shoreline Segmentation.docx
+!/Reference Grid.lyr
+!/Shoreline Segments Naming Tools.tbx

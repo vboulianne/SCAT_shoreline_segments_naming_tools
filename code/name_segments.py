@@ -38,7 +38,7 @@ arcpy.env.overwriteOutput = True
 
 def initiate_shoreline_segments_naming():
 
-    testmode =1
+    testmode = 0
 
     if testmode == 0:
 
@@ -46,10 +46,10 @@ def initiate_shoreline_segments_naming():
 
         shoreline_file = arcpy.GetParameterAsText(0)
         reference_grid = arcpy.GetParameterAsText(1)
-        method = arcpy.GetParameterAsText(2)
-        single_segment_to_process = arcpy.GetParameterAsText(3)
+        single_segment_to_process = arcpy.GetParameterAsText(2)
+        method = arcpy.GetParameterAsText(3)
         shoreline_order_field = arcpy.GetParameterAsText(4)
-        process_output = arcpy.GetParameterAsText(4)
+        process_output = arcpy.GetParameterAsText(5)
         # process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
 
 
@@ -57,12 +57,12 @@ def initiate_shoreline_segments_naming():
         ###### INPUT - STATIC #######
 
         #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy"
-        #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy_method2"
+        shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy_method2"
         #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_arctic_mb_nl_nt_nu_on_qc_yt"
-        shoreline_file = "C:/GIS/Shoreline/shln_naming_work.gdb/test_894200ae745045df96a344b64c81e393"
-        reference_grid = "C:/GIS/Shoreline/code_sgmt_naming/grid/nts_grid.shp"
-        single_segment_to_process = "021A12"
-        #single_segment_to_process = ""
+        #shoreline_file = "C:/GIS/Shoreline/shln_naming_work.gdb/test_894200ae745045df96a344b64c81e393"
+        reference_grid = "C:/GIS/Shoreline/SCAT_shoreline_segments_naming_tools/grid/nts_grid.shp"
+        #single_segment_to_process = "021A12"
+        single_segment_to_process = ""
         shoreline_order_field = "OBJECTID"
         process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
         #arcpy.env.workspace = r"C:\GIS\Shoreline"
@@ -79,8 +79,12 @@ def initiate_shoreline_segments_naming():
 
 
     # Attribute Grid to Segment
+
     shln_to_process = arcpy.SpatialJoin_analysis(target_features=shoreline_file, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""), join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
     
+    if single_segment_to_process != "":
+        arcpy.DeleteField_management(shln_to_process, ['NAME_ENG', 'NOM_FRA', 'NTS_SNRC', 'Shape_area'])
+
     # Make file for processed segment (Method 2)
     shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
 
@@ -99,6 +103,7 @@ def initiate_shoreline_segments_naming():
     else:
         sector_list = []
         sector_list.append(single_segment_to_process)
+        print(sector_list)
 
 
     '''
@@ -257,9 +262,7 @@ def initiate_shoreline_segments_naming():
 
             arcpy.Delete_management(segments_remaining)
             sector_count += 1
-            ## SHOW PROGRESS ##
-            #print("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
-            #arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") completed")
+
 
 
 
