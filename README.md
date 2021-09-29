@@ -1,1 +1,1 @@
-# ECCC-Shoreline-Segmentation
+# SCAT_shoreline_segments_naming_tools 
