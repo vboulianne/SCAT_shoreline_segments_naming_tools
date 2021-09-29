@@ -23,6 +23,7 @@
 import arcpy
 import os
 import locale
+import sys
 from uuid import uuid4
 arcpy.env.overwriteOutput = True
 #arcpy.env.scratchWorkspace = "c:/GIS/Shoreline/Scratch"
@@ -40,9 +41,9 @@ def initiate_shoreline_segments_naming():
 
     testmode = 0
 
-    if testmode == 0:
+    ###### INPUT - TOOL GUI ######
 
-        ###### INPUT - TOOL GUI ######
+    if testmode == 0:
 
         shoreline_file = arcpy.GetParameterAsText(0)
         reference_grid = arcpy.GetParameterAsText(1)
@@ -52,9 +53,10 @@ def initiate_shoreline_segments_naming():
         process_output = arcpy.GetParameterAsText(5)
         # process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
 
+    ###### INPUT - TESTMODE - STATIC #######
 
     elif testmode == 1:
-        ###### INPUT - STATIC #######
+        
 
         #shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy"
         shoreline_file = "C:/GIS/Shoreline/Shoreline_Database.gdb/shoreline_classification_bay_of_fundy_method2"
@@ -67,6 +69,7 @@ def initiate_shoreline_segments_naming():
         process_output = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_" + str(uuid4()).replace("-", "")
         #arcpy.env.workspace = r"C:\GIS\Shoreline"
         method = "By Proximity"
+        output_symbology = ""
     
 
 
@@ -83,10 +86,24 @@ def initiate_shoreline_segments_naming():
     shln_to_process = arcpy.SpatialJoin_analysis(target_features=shoreline_file, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""), join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
     
     if single_segment_to_process != "":
-        arcpy.DeleteField_management(shln_to_process, ['NAME_ENG', 'NOM_FRA', 'NTS_SNRC', 'Shape_area'])
+        arcpy.DeleteField_management(shln_to_process, ['NAME_ENG', 'NOM_FRA', 'NTS_SNRC', 'SRID', 'Shape_area'])
+    
+    lstFields = arcpy.ListFields(shln_to_process)
+    fld_seq_exists = 0
+    for field in lstFields:
+                if field.name == "SEQUENTIAL_NO":
+                    fld_seq_exists = 1
+    if fld_seq_exists == 0:
+        arcpy.AddField_management(in_table=shln_to_process, field_name="SEQUENTIAL_NO", field_type="LONG")
 
     # Make file for processed segment (Method 2)
     shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
+
+    # List field objects
+
+
+
+    # Comment: Transpose fields?
 
 
     ########## GROUP SEGMENTS BY SECTOR ##############
@@ -124,9 +141,10 @@ def initiate_shoreline_segments_naming():
 
             # SQL query create a subgroup by sector and afterward named sequentially in ascending order of their "OBJECTID"
             num_seq = 1
-            with arcpy.da.UpdateCursor(shln_to_process, ["NAME_EN"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
+            with arcpy.da.UpdateCursor(shln_to_process, ["NAME_EN", "NAME_FR", "SEQUENTIAL_NO"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
                 for row in cursor:
-                    row[0] = sector + "-" +  str(num_seq).zfill(4)
+                    row[0] = row[1] = sector + "-" +  str(num_seq).zfill(4)
+                    row[2] = num_seq * 100
                     cursor.updateRow(row)
                     num_seq += 1
             
@@ -165,7 +183,7 @@ def initiate_shoreline_segments_naming():
             '''
             num_seq = 1
             
-            lstFields = arcpy.ListFields(segments_remaining)
+            
             x = False
             for field in lstFields:
                 if field.name == "sector_first_segment":
@@ -181,11 +199,11 @@ def initiate_shoreline_segments_naming():
 
             if x == True:
                 sql_clause_ord = (None, 'ORDER BY sector_first DESC')
-                with arcpy.da.UpdateCursor(segments_remaining, ["*"], where_clause="sector_first_segment=1") as segments_remaining_cursor:
+                with arcpy.da.UpdateCursor(segments_remaining, ['OBJECTID', 'TARGET_FID'], where_clause="sector_first_segment=1") as segments_remaining_cursor:
                 
                     for segment in segments_remaining_cursor:
                         first_segment_id = segment[0]
-                        segment_target_fid = segment[3]
+                        segment_target_fid = segment[1]
                         segment_processed = arcpy.Select_analysis(in_features=segments_remaining, out_feature_class="in_memory\seg_proc" + str(uuid4()).replace("-", ""), where_clause="OBJECTID="+str(first_segment_id)+"")
                         segments_remaining_cursor.deleteRow()
                         
@@ -193,17 +211,18 @@ def initiate_shoreline_segments_naming():
                         break
             else:
                 sql_clause_ord = (None, 'ORDER BY TARGET_FID ASC')
-                with arcpy.da.UpdateCursor(segments_remaining, ["*"], sql_clause=sql_clause_ord) as segments_remaining_cursor:
+                with arcpy.da.UpdateCursor(segments_remaining, ['OBJECTID', 'TARGET_FID'], sql_clause=sql_clause_ord) as segments_remaining_cursor:
                 
                     for segment in segments_remaining_cursor:
 
                         first_segment_id = segment[0]
-                        segment_target_fid = segment[3]
+                        segment_target_fid = segment[1]
                         segment_processed = arcpy.Select_analysis(in_features=segments_remaining, out_feature_class="in_memory\seg_proc" + str(uuid4()).replace("-", ""), where_clause="OBJECTID="+str(first_segment_id)+"")
                         segments_remaining_cursor.deleteRow()
                         
                         num_seq += 1
                         break
+
             # Create near table table with processed segment and all the other segments remaining. 
 
             near_table = arcpy.GenerateNearTable_analysis(segment_processed, segments_remaining, out_table="in_memory\prox_tbl_" +  str(uuid4()).replace("-", ""),  closest="CLOSEST", method="GEODESIC")
@@ -214,10 +233,10 @@ def initiate_shoreline_segments_naming():
                     segment_id = row_table[2]
                     break
             
-            with arcpy.da.UpdateCursor(shln_processed, "*", where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
+            with arcpy.da.UpdateCursor(shln_processed, ['NAME_EN', 'NAME_FR', 'SEQUENTIAL_NO'], where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
                 for segment in shln_processed_cursor:
-                    segment[5] = sector + "-0001"
-                    segment[6] = sector + "-0001"
+                    segment[0] = segment[1] = sector + "-0001"
+                    segment[2] = 100
                     shln_processed_cursor.updateRow(segment)
             
                 arcpy.Delete_management(near_table)
@@ -228,11 +247,11 @@ def initiate_shoreline_segments_naming():
             ###### PROCESS THE REMAINING SEGMENTS ####
             while len(segments_id_remaining) > 0:
 
-                with arcpy.da.UpdateCursor(segments_remaining,"*", where_clause="OBJECTID="+str(segment_id)+"") as segments_remaining_cursor:
+                with arcpy.da.UpdateCursor(segments_remaining, ['OBJECTID', 'TARGET_FID'], where_clause="OBJECTID="+str(segment_id)+"") as segments_remaining_cursor:
                     
                     for segment in segments_remaining_cursor: 
                         segment_id = segment[0]
-                        segment_target_fid = segment[3]
+                        segment_target_fid = segment[1]
                         segment_processed = arcpy.Select_analysis(in_features=segments_remaining, out_feature_class="in_memory\seg_proc" + str(uuid4()).replace("-", ""), where_clause="OBJECTID="+str(segment_id)+"")
                         segments_remaining_cursor.deleteRow()
                         
@@ -251,10 +270,10 @@ def initiate_shoreline_segments_naming():
                 arcpy.Delete_management(near_table)
                 arcpy.Delete_management(segment_processed)
 
-                with arcpy.da.UpdateCursor(shln_processed, "*", where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
+                with arcpy.da.UpdateCursor(shln_processed, ['NAME_EN', 'NAME_FR', 'SEQUENTIAL_NO'], where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
                     for segment in shln_processed_cursor:
-                        segment[5] = sector + "-" +  str(num_seq).zfill(4)
-                        segment[6] = sector + "-" +  str(num_seq).zfill(4)
+                        segment[0] = segment[1] = sector + "-" +  str(num_seq).zfill(4)
+                        segment[2] = num_seq*100
                         shln_processed_cursor.updateRow(segment)
                         break
 
@@ -267,9 +286,12 @@ def initiate_shoreline_segments_naming():
 
 
     ###### OUTPUT ######
-    arcpy.DeleteField_management(shln_processed, ['TARGET_FID', 'SRID', 'Join_count'])
+    arcpy.DeleteField_management(shln_processed, ['TARGET_FID', 'Join_count'])
     arcpy.CopyFeatures_management(shln_processed, process_output)
-    print("Processed shoreline written to " + process_output)
+
+
+    ###### END MESSAGE ######
+    arcpy.AddMessage("Processed shoreline written to " + process_output)
 
 
 
@@ -279,6 +301,11 @@ if __name__ == '__main__':
 
     lic_arcinfo_status = arcpy.CheckProduct("arcinfo")
     lic_spatial_analyst_status = arcpy.CheckExtension("spatial")
+
+    initiate_shoreline_segments_naming() # main function
+
+    arcpy.CheckInExtension("spatial")
+
 
     #if lic_arcinfo_status == "AlreadyInitalized":  # check licenses (p.117)
     #    pass
@@ -290,7 +317,4 @@ if __name__ == '__main__':
     # if lic_spatial_analyst_status = "Available":
     #    arcpy.CheckOutExtension("spatial")
 
-    initiate_shoreline_segments_naming() # main function
-
-    #arcpy.CheckInExtension("spatial")
 

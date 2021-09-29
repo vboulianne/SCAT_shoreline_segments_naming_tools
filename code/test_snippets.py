@@ -29,18 +29,6 @@ arcpy.env.overwriteOutput = True
 # TODO: Find how to specify in the working directory of loaded datasets or input dataset
 # arcpy.env.workspace = arcpy.GetParameterAsText(2) # Set ArcGIS workspace 
 
-# Functions
-def unique(input_list):
-
-    # insert the list to the set
-    list_set = set(input_list)
-    # convert the set to the list
-    unique_list = (list(list_set))
-    for x in unique_list:
-        print (x)
-    return unique_list
-
-
 
 
 
@@ -60,7 +48,7 @@ island_order_field = arcpy.GetParameterAsText(5)
 output = arcpy.GetParameterAsText(6)
 '''
 
-shoreline_to_process = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shoreline_classification_bay_of_fundy"
+shoreline = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shoreline_classification_bay_of_fundy"
 segment_processed = r"C:\GIS\Shoreline\Shoreline_Database.gdb\shln_bof_1segment"
 reference_grid = r"C:\GIS\Shoreline\code_sgmt_naming\grid\nts_grid.shp"
 #islands_ordered = arcpy.GetParameterAsText(2)
@@ -73,8 +61,13 @@ shoreline_processed_name = r"shoreline_with_name.shp"
 output_test = "C:/GIS/Shoreline/shln_naming_work.gdb/scratch/test_"  +  str(uuid4()).replace("-", "")
 #arcpy.env.workspace = r"C:\GIS\Shoreline"
 method = 2
+scriptPath = sys.argv[0]
+dataPath = os.path.dirname(os.path.dirname(scriptPath))
+output_symbology = os.path.join(dataPath, "process_output_symbology.lyr")
 
-
+print(scriptPath)
+print(dataPath)
+print(output_symbology)
 
 ########### CHECKS #################
 # Check is line/polyline
@@ -89,13 +82,26 @@ method = 2
 
 # Create will be problematic shln_proximity_table =  arcpy.GenerateNearTable_analysis(in_features=shoreline_to_process, near_features=shoreline_to_process, out_table="C:/GIS/Shoreline/Shoreline_Database.gdb/shln_northern_bc_proximity_table", search_radius="", location="NO_LOCATION", angle="NO_ANGLE", closest="CLOSEST", closest_count="0", method="GEODESIC")
 
-segments_remaining = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""),  join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
-#shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process_with_griinad, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
+#segments_remaining = arcpy.SpatialJoin_analysis(target_features=shoreline_to_process, out_feature_class="in_memory\shln_grid_" + str(uuid4()).replace("-", ""),  join_features=reference_grid, join_operation="JOIN_ONE_TO_ONE", join_type="KEEP_ALL", match_option="HAVE_THEIR_CENTER_IN")
+shln_to_process = arcpy.CopyFeatures_management(in_features=shoreline, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
 #arcpy.DeleteRows_management(in_rows=shln_processed)
 #arcpy.GenerateNearTable_analysis(segment_processed, shln_to_process_with_grid, out_table="in_memory\prox_tbl_" +  str(uuid4()).replace("-", ""),  closest="CLOSEST", method="GEODESIC")
 # arcpy.GenerateNearTable_analysis(segment_processed, shln_to_process_with_grid, out_table="C:\GIS\Shoreline\Scratch\prox_tbl_" +  str(uuid4()).replace("-", "") + ".shp",  closest="CLOSEST", method="GEODESIC")
 
 
 #arcpy.Select_analysis(in_features=segments_remaining, out_feature_class="in_memory\seg_proc" + str(uuid4()).replace("-", ""), where_clause="UNIQUEID='190'")
-print(output_test)
-arcpy.CopyFeatures_management(segments_remaining, output_test)
+#print(output_test)
+arcpy.CopyFeatures_management(shln_to_process, output_test)
+
+# arcpy.AddField_management(shln_to_process,"SEQUENTIAL_NO", "LONG")
+
+
+
+#field_index = arcpy.ListIndexes(shln_to_process)
+
+#print(field_index)
+
+
+if output_symbology != "":
+    params = arcpy.GetParameterInfo()
+    params[2].symbology = output_symbology
