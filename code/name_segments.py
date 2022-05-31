@@ -30,10 +30,58 @@ arcpy.env.overwriteOutput = True
 
 # Declarations
 
-# TODO: Find how to specify in the working directory of loaded datasets or input dataset
-# arcpy.env.workspace = arcpy.GetParameterAsText(2) # Set ArcGIS workspace 
 
 ###### FUNCTIONS ######
+
+def reorder_fields(table, out_table, field_order, add_missing=True):
+    """
+    http://joshwerts.com/blog/2014/04/17/arcpy-reorder-fields/
+
+    Reorders fields in input featureclass/table
+    :table:         input table (fc, table, layer, etc)
+    :out_table:     output table (fc, table, layer, etc)
+    :field_order:   order of fields (objectid, shape not necessary)
+    :add_missing:   add missing fields to end if True (leave out if False)
+    -> path to output table
+    new_field_order = ["field2", "field3", "field1"]
+    reorder_fields(in_fc, out_fc, new_field_order)
+
+    """
+    existing_fields = arcpy.ListFields(table)
+    existing_field_names = [field.name for field in existing_fields]
+
+    existing_mapping = arcpy.FieldMappings()
+    existing_mapping.addTable(table)
+
+    new_mapping = arcpy.FieldMappings()
+
+    def add_mapping(field_name):
+        mapping_index = existing_mapping.findFieldMapIndex(field_name)
+
+        # required fields (OBJECTID, etc) will not be in existing mappings
+        # they are added automatically
+        if mapping_index != -1:
+            field_map = existing_mapping.fieldMappings[mapping_index]
+            new_mapping.addFieldMap(field_map)
+
+    # add user fields from field_order
+    for field_name in field_order:
+        if field_name not in existing_field_names:
+            raise Exception("Field: {0} not in {1}".format(field_name, table))
+
+        add_mapping(field_name)
+
+    # add missing fields at end
+    if add_missing:
+        missing_fields = [f for f in existing_field_names if f not in field_order]
+        for field_name in missing_fields:
+            add_mapping(field_name)
+
+    # use merge with single input just to use new field_mappings
+    arcpy.Merge_management(table, out_table, new_mapping)
+    return out_table
+
+
 
 
 
@@ -90,15 +138,21 @@ def initiate_shoreline_segments_naming():
     
     lstFields = arcpy.ListFields(shln_to_process)
     fld_seq_exists = 0
+    fld_name_exists = 0
     for field in lstFields:
                 if field.name == "SEQUENTIAL_NO":
                     fld_seq_exists = 1
+                elif field.name == "NAME":
+                    fld_name_exists = 1
     if fld_seq_exists == 0:
         arcpy.AddField_management(in_table=shln_to_process, field_name="SEQUENTIAL_NO", field_type="LONG")
+    if fld_name_exists == 0:
+        arcpy.AddField_management(in_table=shln_to_process, field_name="NAME", field_type="TEXT")
+    
 
     # Make file for processed segment (Method 2)
     shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
-
+    #reference_grid_file  = arcpy.CopyFeatures_management(in_features=reference_grid, out_feature_class="in_memory\ref_grid_" + str(uuid4()).replace("-", ""))
     # List field objects
 
 
@@ -117,10 +171,12 @@ def initiate_shoreline_segments_naming():
             for row in cursor:
                 values_list.append(row[1])
         sector_list = list(set(values_list))
+
     else:
         sector_list = []
         sector_list.append(single_segment_to_process)
-        print(sector_list)
+        arcpy.AddMessage(sector_list)
+        
 
 
     '''
@@ -131,20 +187,24 @@ def initiate_shoreline_segments_naming():
     '''
 
     if method == "By Ordering Field":
+
         sector_count = 1
+
+        # Shoreline to process *HAS* to be in filesystem to be sortable in the Cursor with SQL postfix. It is a limitation of 'In memory' storage.
+        shln_to_process = arcpy.CopyFeatures_management(in_features= shln_to_process, out_feature_class="shln_proc_" + str(uuid4()).replace("-", ""))
+        
         for sector in sector_list: # Loop by sector
             arcpy.AddMessage("Sector " + str(sector_count) + "/" + str(len(sector_list)) + " (" + sector + ") being processed")
-            # Select all segments within grid sector
-        
-
-            sql_clause_ord = (None, "ORDER BY " + shoreline_order_field + " ASC")
+            
+            #Sort by field
+            sql_orderby = "ORDER BY " + shoreline_order_field
 
             # SQL query create a subgroup by sector and afterward named sequentially in ascending order of their "OBJECTID"
             num_seq = 1
-            with arcpy.da.UpdateCursor(shln_to_process, ["NAME_EN", "NAME_FR", "SEQUENTIAL_NO"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=sql_clause_ord) as cursor:
+            with arcpy.da.UpdateCursor(shln_to_process, ["NAME", "SEQUENTIAL_NO"], where_clause="NTS_SNRC='" + sector + "'", sql_clause=(None, sql_orderby)) as cursor:
                 for row in cursor:
-                    row[0] = row[1] = sector + "-" +  str(num_seq).zfill(4)
-                    row[2] = num_seq * 100
+                    row[0] = sector + "-" +  str(num_seq).zfill(4)
+                    row[1] = num_seq * 100
                     cursor.updateRow(row)
                     num_seq += 1
             
@@ -233,10 +293,10 @@ def initiate_shoreline_segments_naming():
                     segment_id = row_table[2]
                     break
             
-            with arcpy.da.UpdateCursor(shln_processed, ['NAME_EN', 'NAME_FR', 'SEQUENTIAL_NO'], where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
+            with arcpy.da.UpdateCursor(shln_processed, ['NAME', 'SEQUENTIAL_NO'], where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
                 for segment in shln_processed_cursor:
-                    segment[0] = segment[1] = sector + "-0001"
-                    segment[2] = 100
+                    segment[0] = sector + "-0001"
+                    segment[1] = 100
                     shln_processed_cursor.updateRow(segment)
             
                 arcpy.Delete_management(near_table)
@@ -270,10 +330,10 @@ def initiate_shoreline_segments_naming():
                 arcpy.Delete_management(near_table)
                 arcpy.Delete_management(segment_processed)
 
-                with arcpy.da.UpdateCursor(shln_processed, ['NAME_EN', 'NAME_FR', 'SEQUENTIAL_NO'], where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
+                with arcpy.da.UpdateCursor(shln_processed, ['NAME', 'SEQUENTIAL_NO'], where_clause="TARGET_FID="+str(segment_target_fid)+"") as shln_processed_cursor:
                     for segment in shln_processed_cursor:
-                        segment[0] = segment[1] = sector + "-" +  str(num_seq).zfill(4)
-                        segment[2] = num_seq*100
+                        segment[0] = sector + "-" +  str(num_seq).zfill(4)
+                        segment[1] = num_seq*100
                         shln_processed_cursor.updateRow(segment)
                         break
 
@@ -282,18 +342,27 @@ def initiate_shoreline_segments_naming():
             arcpy.Delete_management(segments_remaining)
             sector_count += 1
 
+   
+    # Create alias
+    arcpy.AlterField_management(shln_processed, "NAME", "NAME_SEG", "Alias_seg") # There seems to be an issue to have an alias that is the same but in proper case
+    arcpy.AlterField_management(shln_processed, "NAME_SEG", "NAME", "Name")
+    arcpy.AlterField_management(in_table=shln_processed, field="SEQUENTIAL_NO", new_field_alias="Sequential number (per sector)")
 
+    # Delete fields
+    arcpy.DeleteField_management(shln_processed, ['TARGET_FID', 'Join_count', 'NAME_ENG', 'NOM_FRA', 'NTS_SNRC', 'SRID', 'Shape_area'])
+    
+    # Reorder fields - Not working
+    #new_field_order = ["UNIQUEID", "NAME"]
+    #shln_reordered = reorder_fields(shln_processed, "in_memory\shln_grid_" + str(uuid4()).replace("-", ""), new_field_order)
 
 
     ###### OUTPUT ######
-    arcpy.DeleteField_management(shln_processed, ['TARGET_FID', 'Join_count'])
+
     arcpy.CopyFeatures_management(shln_processed, process_output)
 
 
     ###### END MESSAGE ######
     arcpy.AddMessage("Processed shoreline written to " + process_output)
-
-
 
 
         
