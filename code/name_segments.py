@@ -139,11 +139,15 @@ def initiate_shoreline_segments_naming():
     lstFields = arcpy.ListFields(shln_to_process)
     fld_seq_exists = 0
     fld_name_exists = 0
+    fld_uid_exists = 0
     for field in lstFields:
                 if field.name == "SEQUENTIAL_NO":
                     fld_seq_exists = 1
                 elif field.name == "NAME":
                     fld_name_exists = 1
+                elif field.name == "UNIQUEID":
+                    fld_uid_exists = 1
+
     if fld_seq_exists == 0:
         arcpy.AddField_management(in_table=shln_to_process, field_name="SEQUENTIAL_NO", field_type="LONG")
     if fld_name_exists == 0:
@@ -154,7 +158,6 @@ def initiate_shoreline_segments_naming():
     shln_processed = arcpy.CopyFeatures_management(in_features=shln_to_process, out_feature_class="in_memory\shln_proc_" + str(uuid4()).replace("-", ""))
     #reference_grid_file  = arcpy.CopyFeatures_management(in_features=reference_grid, out_feature_class="in_memory\ref_grid_" + str(uuid4()).replace("-", ""))
     # List field objects
-
 
 
     # Comment: Transpose fields?
@@ -351,14 +354,19 @@ def initiate_shoreline_segments_naming():
     # Delete fields
     arcpy.DeleteField_management(shln_processed, ['TARGET_FID', 'Join_count', 'NAME_ENG', 'NOM_FRA', 'NTS_SNRC', 'SRID', 'Shape_area'])
     
-    # Reorder fields - Not working
-    #new_field_order = ["UNIQUEID", "NAME"]
-    #shln_reordered = reorder_fields(shln_processed, "in_memory\shln_grid_" + str(uuid4()).replace("-", ""), new_field_order)
+    # Reorder fields
+
+    if fld_uid_exists == 1:
+        new_field_order = ["UNIQUEID", "NAME"]
+        reorder_fields(shln_processed, process_output, new_field_order)
+    else:
+        new_field_order = ["NAME"]
+        reorder_fields(shln_processed, process_output, new_field_order)
 
 
     ###### OUTPUT ######
 
-    arcpy.CopyFeatures_management(shln_processed, process_output)
+    # arcpy.CopyFeatures_management(shln_processed, process_output)
 
 
     ###### END MESSAGE ######
@@ -375,15 +383,5 @@ if __name__ == '__main__':
 
     arcpy.CheckInExtension("spatial")
 
-
-    #if lic_arcinfo_status == "AlreadyInitalized":  # check licenses (p.117)
-    #    pass
-    #elif  lic_arcinfo_status == "Available" or :
-    #    pass
-    #else:
-        # Exit script gracefully
-    
-    # if lic_spatial_analyst_status = "Available":
-    #    arcpy.CheckOutExtension("spatial")
 
 
